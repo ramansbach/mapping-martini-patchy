@@ -1,0 +1,34 @@
+This is a package used to set up and run a series of simulations, 
+for the purpose of creating a mapping from a set of Martini DXXX
+type peptides to my patchy model [cf. Mansbach 2018].  It has
+several parts.
+
+First, a python script createMartiniModel.py, which takes
+a set of three residues names X,Y, and Z, and an argument denoting whether
+it should be symmetric or antisymmetric and creates a Martini
+gro file, a top file, and an itp file corresponding to either
+DXYZ-OPV3-ZYXD or DXYZ-OPV3-XYZD, where the OPV3 cores use the bonded
+parameters from the DFAG reparameterization [Mansbach 2017]. The parameters
+of the side chain are [set to be default Martini/set to be the same as the 
+DFAG parameters -- this may be worth testing against one another] with
+[I need to check secondary structure considerations to see if it matters
+much.]
+
+There are also a series of bash scripts. First, getSASA.sh, which
+runs a 30 ns simulation of a single monomer in Gromacs [4.6/5] with the given 
+parameters, and then performs a gmx SASA calculation to extract
+the solvent-accessible surface area of the side chain or side chains
+[check also that the LJ radii are correct for gmx SASA.]
+
+Second, getDelF.sh, which runs a dimer-dimer PMF starting with a 
+longish (30 ns?) equilibration of a dimer whose coordinates are
+taken primarily from a DFAG dimer, then pulls these apart
+and computes the PMF via gmx wham.
+
+Finally runMapSims.sh, which is a wrapping script that creates all
+files and runs all short/intermediate simulations as well as preparing
+the longer ones (monomer/dimer production runs) to be submitted as
+sge (?) jobs.
+
+The final results may then be analyzed with the corresponding
+Matlab script, computeMapping.m.
