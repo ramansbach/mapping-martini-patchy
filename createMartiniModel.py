@@ -79,11 +79,21 @@ class Bond:
         or 1)
     notes: free form string
         any comment to go after the end, defaults to ''
+        
+    ------
+    Raises
+    ------
+    Warning, if the bond is created between two atoms whose residues are
+    not numbered consecutively.  Eventually, this should possibly be ported
+    to an error.
     """    
     def __init__(self,ainds,params,notes = ''):
         """
         Create a bond given two atoms and some parameters
         """
+        if len(ainds) == 2:
+            if abs(ainds[0].resNo - ainds[1].resNo) != 1:
+                warn('Bond created between disjoint residues. Incorrectly ordered topology file?')
         self.ainds = ainds
         self.params = params
         self.notes = notes
@@ -122,6 +132,22 @@ class Bond:
         """
         for a in self.ainds:
             if a.number == ind:
+                return True
+        return False
+    
+    def containsRes(self,resID):
+        """
+        Check whether any of the atoms in the bond belongs to a particular
+        residue
+        
+        ----------
+        Parameters
+        ----------
+        resID: int
+            the resID of the residue we are checking for
+        """
+        for a in self.ainds:
+            if a.resNo == resID:
                 return True
         return False
     
@@ -291,6 +317,14 @@ class Blist:
     def __str__(self):
         return str([str(entry) for entry in self.entries])
         
+    def __add__(self,other):
+        """
+        Add two Blists together by concatenating their entries
+        """
+        newBlist = Blist()
+        newBlist.entries = self.entries+other.entries
+        return newBlist
+        
     def append(self,entry):
         """
         Append a bond to the list
@@ -323,13 +357,52 @@ class Blist:
         Parameters
         ----------
         ID: int
+        
         """
         
         newEntries = []
+     
+        ind = 0
         for entry in self.entries:
             if not entry.contains(ID):
                 newEntries.append(entry)
-        self.entries = newEntries        
+            
+            ind += 1
+        self.entries = newEntries   
+    
+    def insertByResIndex(self,newentries,resID):
+        """
+        Inserts entries between entries containing atoms with resID - 1 and 
+        those with atoms with resID + 1
+        
+        ----------
+        Parameters
+        ----------
+        newentries: Blist
+            the new entries to be inserted
+            
+        resID: int
+            the residue ID location to insert the entries
+        """
+        startInd = -1
+
+        currind = 0
+
+        for entry in self.entries:
+            if entry.containsRes(resID - 1):
+                startInd = currind
+            currind += 1
+        
+        nentries = []
+        for i in range(0,startInd+1):
+            nentries.append(self.entries[i])
+        for entry in newentries:
+            nentries.append(entry)
+        for i in range(startInd+1,len(self.entries)):
+            nentries.append(self.entries[i])
+        
+        self.entries = nentries
+        
         
         
 class Topology:
@@ -368,6 +441,218 @@ class Topology:
         self.anglist = Blist()
         self.dihlist = Blist()
     
+    def createNewBonds(self,params,shiftID,iD):
+        """
+        Helper function that creates bonds, constraints, angles or dihedrals
+        
+        ----------
+        Parameters
+        ----------
+        params: list
+            These parameters are determined by the particular type of thing
+            in general
+        shiftID: int
+            essentially what kind of bonded interaction: 1 = bond or constraint
+            , 2 = angle, 3 = dihedral (it's how far out to take your window) of
+            beads that are included
+        iD: int
+            location of central bead around which we are computing these
+            things
+            
+        -------
+        Returns
+        -------
+        newBonds: Blist
+            list of  
+        """
+        newBonds = Blist()
+        span = range(max(0,iD-shiftID),min(len(self.atomlist),iD+shiftID))
+        for j in range(0,len(span)-shiftID):
+            lrinds = span[j:j+shiftID+1]
+            ainds = []
+            notes = ''
+            for lri in lrinds:
+                currbead = self.atomlist[lri]
+                ainds.append(currbead)
+                notes += currbead.resname + '-'
+            if shiftID == 1:
+                newBonds.append(Bond(ainds,params,notes))
+            elif shiftID == 2:
+                newBonds.append(Angle(ainds,params,notes))
+            elif shiftID == 3:
+                newBonds.append(Dihedral(ainds,params,notes))
+            else:
+                warn('No such bonded interaction, returning empty Blist.')
+        return newBonds
+    
+    def createRes(self,name,structure,bbID):
+        """
+        Creates a residue to be inserted based on the Martini 2.2 force field
+        
+        ----------
+        Parameters
+        ----------
+        name: string
+            the residue name as it appears in the Martini 2.2 ff lookup table
+        structure: string
+            the residue secondary structure as it appears in the Martini 2.2
+            ff lookup table
+        bbID: index of current BB bead where the residue is to be replaced
+        -------
+        Returns
+        -------
+        resAtoms: list of atoms
+            all atoms contained in the residue
+        resBonds: Blist of bonds
+        resCons: Blist of constraints
+        resAngs: Blist of angles
+        resDihs: Blist of dihedrals
+        
+        -----
+        Notes
+        -----
+        1) find type and position of BB bead
+        2) find type and positions of SC beads
+        3) bonds/constraints
+        4) angles
+        5) dihedrals
+        """
+        resAtoms = []
+        resBonds = Blist()
+        resCons = Blist()
+        resAngs = Blist()
+        resDihs = Blist()
+        ff = martini22()
+        ss = ['F','E','H','1','2','3','T','S','C']
+        ssind = ss.index(structure)
+        #add backbone bead
+        if ff.bbtyp.has_key(name):
+            bbbeadtype = ff.bbtyp[name][ssind]
+        else:
+            bbbeadtype = ff.bbdef[ssind]
+        bbAtom = self.atomlist[bbID]
+        bbbead = Bead(0,name,'BB',0,bbAtom.pos,bbAtom.vel,bbbeadtype)
+        resAtoms.append(bbbead)
+        
+        bbl = ff.bbldef[ssind]
+        bbk = ff.bbkb[ssind]
+        #add backbone bonds connecting left and right
+        if bbk is not None:
+            newBBBonds = self.createNewBonds([1,bbl,bbk],1,bbID)
+            resBonds = resBonds + newBBBonds
+        else:
+            newBBBonds = self.createNewBonds([1,bbl],1,bbID)
+            resCons = resCons + newBBBonds
+                
+        #add backbone angles connecting left and right
+        if ff.bbatyp.has_key[name]:
+            bba = ff.bbatyp[name][ssind]
+        else:
+            bba = ff.bbadef[ssind]
+        bbka = ff.bbka[ssind]
+        newAngs = self.createNewBonds([2,bba,bbka],2,bbID)
+        resAngs = resAngs + newAngs
+        #if they exist, add backbone dihedrals connecting left and right
+        if ssind < len(ff.bbddef):
+            bbd = ff.bbbdef[ssind]
+            bbkd = ff.bbkd[ssind]
+            newDihs = self.createNewBonds([1,bbd,bbkd],3,bbID)
+            resDihs = resDihs + newDihs
+           
+        
+        #add side chain beads         
+        if len(ff.sidechains[name]) > 0:
+            
+            scpos = self.getSCPos(ff.sidechains[name][1],bbAtom.pos,
+                                      len(ff.sidechains[name][0]))
+            for sci in range(len(ff.sidechains[name][0])):
+                scbead = Bead(0,name,'SC'+str(sci+1),sci+1,scpos[sci,:],
+                              np.array([0.,0.,0.]),ff.sidechains[name][0][sci])
+                resAtoms.append(scbead)
+        
+            #add bonded interactions containing SC beads
+            bondConnect = ff.connectivity[name]
+            bondAttributes = ff.sidechains[name]
+            for bsetind in range(len(bondConnect)):
+                for bind in range(len(bondConnect[bsetind])):
+                    currBInds = bondConnect[bsetind][bind]
+                    currBParams = bondAttributes[bsetind][bind]
+                    currBeads = []
+                    currNotes = ''
+                    for cbind in range(len(currBInds)):
+                        currBeads.append(self.atomlist[bbID+currBInds[cbind]])
+                        currNotes += self.atomlist[bbID \
+                                                +currBInds[cbind]].resname +'-'
+                    if len(currBInds) == 2:
+                        
+                        if currBParams[1] is not None: #bond
+                            currParams = [1,currBParams[0],currBParams[1]]
+                            resBonds.append(Bond(currBeads,currParams,
+                                                 currNotes))
+                        else: #constraint
+                            currParams = [1,currBParams[0]]
+                            resCons.append(Bond(currBeads,currParams,
+                                                currNotes))
+                    elif len(currBInds) == 3:#angle
+                        currParams = [2,currBParams[0],currBParams[1]]
+                        resAngs.append(Angle(currBeads,currParams,currNotes))
+                    elif len(currBInds) == 4:#dihedral
+                        currParams = [1,currBParams[0],currBParams[1]]
+                        resDihs.append(Dihedral(currBeads,currParams,
+                                                currNotes))
+                    else:#???
+                        warn("Unknown bonded interaction. Not adding SC bonds.")
+                        
+        return (resAtoms,resBonds,resCons,resAngs,resDihs)
+    
+    def getSCPos(self,scs,bbPos,nBeads):
+        """
+        get the starting positions for the SC beads
+        
+        ----------
+        Parameters
+        ----------
+        scs: Side chain bond parameters from force field
+        bbPos: position of backbone bead
+        nBeads: int
+            number of beads in the SC
+        
+        -------
+        Returns
+        -------
+        scpos: numpy array, B x 3
+            the positions of the B SC beads
+            
+        -----
+        Notes
+        -----
+        Right now this is pretty hacky and assumes that anything really bad
+        will be sorted out during equilibration
+        
+        We just define everything as taking place in yz plane
+        """
+        scpos = np.zeros((nBeads,3))
+        if nBeads < 3:
+            prevPos = bbPos
+            for i in range(len(scs)):
+                pos = prevPos + scs[i][0]*np.array([0.,0.,1.])
+                scpos[i,:] = pos
+        elif nBeads == 3:
+            scpos[0,:] = scs[0][0]*np.array([0.,0.,1.])
+            scpos[1,:] = scpos[0,:] + scs[1][0]*np.array([0.,np.cos(np.pi/3),
+                                                          np.sin(np.pi/3)])
+            scpos[2,:] = scpos[0,:] + scs[2][0]*np.array([0.,-np.cos(np.pi/3),
+                                                          np.sin(np.pi/3)])
+        else:
+            scpos[0,:] = scs[0][0]*np.array([0.,0.,1.])
+            scpos[1,:] = scpos[0,:] + scs[1][0]*np.array([0.,np.cos(np.pi/3),
+                                                          np.sin(np.pi/3)])
+            scpos[2,:] = scpos[0,:] + scs[2][0]*np.array([0.,-np.cos(np.pi/3),
+                                                          np.sin(np.pi/3)])
+            scpos[3,:] = scpos[2,:] + scs[1][0]*np.array([0.,np.cos(np.pi/3),
+                                                          np.sin(np.pi/3)])
+            
+        return scpos
 
 class DXXXTopology(Topology):
     """
@@ -579,10 +864,16 @@ class DXXXTopology(Topology):
             Once again make sure to renumber the atoms that come after these 
             atoms.
         """
+        IDs = []
+        for atom in self.atomlist:
+            if atom.resNo == resID:
+                IDs.append(atom.number)
+        ind0 = min(IDs)
+        newRes = self.createRes(name,structure,ind0)
+        self.removeRes(resID)
         
-        ind0 = self.removeRes(resID)
         
-        self.addRes(name,structure,ind0)
+        self.addRes(newRes,resID,ind0)
     
         
     def removeRes(self,resID):
@@ -594,12 +885,7 @@ class DXXXTopology(Topology):
         ----------
         IDs: list of ints
             list of indices
-        
-        -------
-        Returns
-        -------
-        ind0: int
-            index of the first atom ID where the residue started
+             
         -----    
         Notes
         -----
@@ -631,7 +917,56 @@ class DXXXTopology(Topology):
             else:
                 reind -= 1
         self.atomlist = natomlist
-        return min(IDs)
+    
+    def addRes(self,newRes,resID,ind,startIDs):
+        """
+        Add a residue to the system at the given index
+        
+        ----------
+        Parameters
+        ----------
+        newRes: structure containing (list,Blist,Blist,Blist,Blist)
+            list of atoms
+            Blist of bonds
+            Blist of constraints
+            Blist of angles
+            Blist of dihedrals
+        resID: int
+            index of resID
+        ind0: where to insert atoms
+            
+        -----
+        Notes
+        -----
+            1) add atoms to atomlist, renumbering everything after them
+            2) insert bonds, constraints, angles, and dihedrals
+                * note to check: am I gonna fuck myself if I stick these
+                  at the ends of their respective lists? Because I think
+                  that might not play well with removeRes, but I'll have to
+                  check
+        """
+        resAtoms = newRes[0]
+        resBonds = newRes[1]
+        resCons = newRes[2]
+        resAngs = newRes[3]
+        resDihs = newRes[4]
+        newatoms = []        
+        for i in range(0,ind):
+            newatoms.append(self.atomlist[i])
+        for i in range(len(resAtoms)):
+            resAtoms[i].number = i+ind
+            resAtoms[i].resNo = resID
+            newatoms.append(resAtoms[i])
+        for i in range(ind,len(self.atomlist)):
+            atom = self.atomlist[i]
+            atom.number = i+len(resAtoms)
+            atom.resNo += 1
+            newatoms.append(atom)
+        self.atomlist = newatoms
+        self.bondlist.insertByResIndex(resBonds,resID)
+        self.conlist.insertByResIndex(resCons,resID)
+        self.anglist.insertByResIndex(resAngs,resID)
+        self.dihlist.insertByResIndex(resDihs,resID)
         
 
 def main():

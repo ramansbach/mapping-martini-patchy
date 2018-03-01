@@ -8,6 +8,7 @@ Unit tests for createMartiniModel
 """
 import numpy as np,numpy.testing as npt
 from createMartiniModel import *
+from martini22_ff import martini22
 import pdb
 def test_Bead():
     """
@@ -227,43 +228,53 @@ def test_removeRes_midsingle():
     assert Top1.bondlist[2].ainds[1].number == 9
     
 def test_removeRes_midsingle2():
-    Top1 = DXXXTopology('homoAA.itp','homoA.gro')
+    Top1 = DXXXTopology('DFAG.itp','DFAG.gro')
     bnum = len(Top1.bondlist)
     cnum = len(Top1.conlist)
     anum = len(Top1.anglist)
     dnum = len(Top1.dihlist)
     atnum = len(Top1.atomlist)
-    Top1.removeRes(5)
+    Top1.removeRes(8)
     assert len(Top1.atomlist) == atnum - 3
     assert len(Top1.bondlist) == bnum - 2
     assert len(Top1.conlist) == cnum - 3
     assert len(Top1.anglist) == anum - 4
     assert len(Top1.dihlist) == dnum - 5*9
-    assert Top1.atomlist[5].number == 6
-    assert Top1.atomlist[5].resname == 'VIN'
-    assert Top1.atomlist[6].number == 7
-    assert Top1.atomlist[6].resname == 'VIN'
+    assert Top1.atomlist[12].number == 13
+    assert Top1.atomlist[12].resname == 'VIN'
+    assert Top1.atomlist[13].number == 14
+    assert Top1.atomlist[13].resname == 'VIN'
+    assert Top1.bondlist[5].ainds[0].number == 12
+    assert Top1.bondlist[5].ainds[1].number == 13
+    assert Top1.bondlist[5].ainds[0].resname == 'COP'
+    assert Top1.bondlist[5].ainds[1].resname == 'VIN'
+    assert Top1.bondlist[6].ainds[0].number == 14
+    assert Top1.bondlist[6].ainds[1].number == 18
+    assert Top1.bondlist[6].ainds[0].resname == 'VIN'
+    assert Top1.bondlist[6].ainds[1].resname == 'COP'
     
 def test_removeRes_mid1():
     """
     Test removing residues from a system
     """
-    Top1 = DXXXTopology('homoAA.itp','homoA.gro')
+    Top1 = DXXXTopology('DFAG.itp','DFAG.gro')
     
-    for i in range(5):
+    for i in range(11):
         resID = 1
         Top1.removeRes(resID)
+        '''        
         print("remaining: ")
         for atom in Top1.atomlist:
             print(atom)
         print("-----------\n")
+        '''
         #pdb.set_trace()
-    pdb.set_trace()
+    #pdb.set_trace()
     for i in range(2):
         resID = 3
         Top1.removeRes(resID)
-        if i == 0:
-            pdb.set_trace()
+        #if i == 0:
+            #pdb.set_trace()
     assert len(Top1.atomlist) == 2
     assert len(Top1.bondlist) == 1
     assert len(Top1.anglist) == 0
@@ -272,9 +283,82 @@ def test_removeRes_mid1():
     
     assert Top1.atomlist[0].number == 1
     assert Top1.atomlist[0].resNo == 1
-    assert Top1.atomlist[0].resname == 'VIN'
+    assert Top1.atomlist[0].resname == 'GLY'
     assert Top1.atomlist[1].number == 2
     assert Top1.atomlist[1].resNo == 2
-    assert Top1.atomlist[1].resname == 'COA'
+    assert Top1.atomlist[1].resname == 'ALA'
     assert Top1.atomlist[0] == Top1.bondlist[0].ainds[0]
     assert Top1.atomlist[1] == Top1.bondlist[0].ainds[1]
+    
+def test_removeRes_mid2():
+    """
+    Test removing residues from a system
+    """
+    Top1 = DXXXTopology('DFAG.itp','DFAG.gro')
+    
+    for i in range(12):
+        resID = 1
+        Top1.removeRes(resID)
+        '''
+        print("remaining: ")
+        for atom in Top1.atomlist:
+            print(atom)
+        print("-----------\n")
+        '''
+        #pdb.set_trace()
+    #pdb.set_trace()
+    for i in range(1):
+        resID = 3
+        Top1.removeRes(resID)
+        #if i == 0:
+            #pdb.set_trace()
+    assert len(Top1.atomlist) == 5
+    assert len(Top1.bondlist) == 2
+    assert len(Top1.anglist) == 3
+    assert len(Top1.conlist) == 3
+    assert len(Top1.dihlist) == 9
+    
+    assert Top1.atomlist[0].number == 1
+    assert Top1.atomlist[0].resNo == 1
+    assert Top1.atomlist[0].resname == 'ALA'
+    for i in range(1,4):
+        assert Top1.atomlist[i].number == i+1
+        assert Top1.atomlist[i].resNo == 2
+        assert Top1.atomlist[i].resname == 'PHE'
+    assert Top1.atomlist[0] == Top1.bondlist[0].ainds[0]
+    assert Top1.atomlist[1] == Top1.bondlist[0].ainds[1]
+    
+def test_getSCPosARG():
+    """
+    test getting the SC position for a few key residues
+    """
+    ff = martini22()
+    scsARG = ff.sidechains['ARG'][1]
+    Top = Topology()
+    scposARG = Top.getSCPos(scsARG,np.array([0.,0.,0.]),2)
+    npt.assert_array_equal(scposARG,np.array([[0.,0.,0.33],[0.,0.,0.34]]))
+    
+def test_getSCPosPHE():
+    """
+    test getting SC positions for phenylalanine
+    """
+    ff = martini22()
+    scsPHE= ff.sidechains['PHE'][1]
+    Top = Topology()
+    scposPHE = Top.getSCPos(scsPHE,np.array([0.,0.,0.]),3)
+    npt.assert_array_almost_equal(scposPHE,np.array([[0.,0.,0.31],
+                                                     [0.,0.135,0.27*np.sqrt(3)/2+0.31],
+                                                     [0.,-0.135,0.27*np.sqrt(3)/2+0.31]]))
+
+def test_getSCPosTRP():
+    """
+    test getting SC positions for TRP
+    """                              
+    ff = martini22()
+    scs= ff.sidechains['TRP'][1]
+    Top = Topology()
+    scpos = Top.getSCPos(scs,np.array([0.,0.,0.]),4)
+    npt.assert_array_almost_equal(scpos,np.array([[0.,0.,0.3],
+                                                     [0.,0.135,0.27*np.sqrt(3)/2+0.3],
+                                                     [0.,-0.135,0.27*np.sqrt(3)/2+0.3],
+                                                     [0.,0.,0.27*np.sqrt(3)+0.3]]))                 
