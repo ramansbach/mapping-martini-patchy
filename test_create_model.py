@@ -361,4 +361,23 @@ def test_getSCPosTRP():
     npt.assert_array_almost_equal(scpos,np.array([[0.,0.,0.3],
                                                      [0.,0.135,0.27*np.sqrt(3)/2+0.3],
                                                      [0.,-0.135,0.27*np.sqrt(3)/2+0.3],
-                                                     [0.,0.,0.27*np.sqrt(3)+0.3]]))                 
+                                                     [0.,0.,0.27*np.sqrt(3)+0.3]]))       
+                                                     
+def test_change_PHE_to_ALA():
+    """
+    Test swapping residues
+    """
+    Top1 = DXXXTopology('DFAG.itp','DFAG.gro')
+    Top1.resSwap('ALA','C',2)
+    Top1.write('DAAG_half_test')
+    
+def test_change_DFAG_to_DAAG():
+    Top1 = DXXXTopology('DFAG.itp','DFAG.gro')
+    Top1.resSwap('ALA','C',2)
+    Top1.resSwap('ALA','C',14)
+    Top1.write('DAAG_test')
+    
+def test_change_ALA_to_PHE():
+    Top1 = DXXXTopology('DFAG.itp','DFAG.gro')
+    Top1.resSwap('PHE','C',3)
+    Top1.write('DFFG_half_test')

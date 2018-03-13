@@ -387,20 +387,22 @@ class Blist:
         startInd = -1
 
         currind = 0
-
+        #pdb.set_trace()
         for entry in self.entries:
             if entry.containsRes(resID - 1):
                 startInd = currind
             currind += 1
-        
+        #pdb.set_trace()
         nentries = []
         for i in range(0,startInd+1):
             nentries.append(self.entries[i])
+        #pdb.set_trace()
         for entry in newentries:
             nentries.append(entry)
+        #pdb.set_trace()
         for i in range(startInd+1,len(self.entries)):
             nentries.append(self.entries[i])
-        
+        #pdb.set_trace()
         self.entries = nentries
         
         
@@ -441,7 +443,32 @@ class Topology:
         self.anglist = Blist()
         self.dihlist = Blist()
     
-    def createNewBonds(self,params,shiftID,iD):
+    def findBBinRes(self,resID):
+        """
+        A function that locates the BB residue inside the atomlist with the
+        given residue ID.  Assumes there is only one
+        
+        ----------
+        Parameters
+        ----------
+        resID: int
+            the residue ID to search for the backbone bead of
+        
+        -------
+        Returns
+        -------
+        beadID: int
+            the index of the bead in the atomlist that is the backbone bead
+            for the given residue, -1 if there is no backbone bead
+        """
+        beadID = 0
+        for atom in self.atomlist:
+            if atom.resNo == resID and atom.name == 'BB':
+                return beadID
+            beadID += 1
+        return -1
+    
+    def createNewBonds(self,params,shiftID,bbAtom):
         """
         Helper function that creates bonds, constraints, angles or dihedrals
         
@@ -454,10 +481,9 @@ class Topology:
         shiftID: int
             essentially what kind of bonded interaction: 1 = bond or constraint
             , 2 = angle, 3 = dihedral (it's how far out to take your window) of
-            beads that are included
-        iD: int
-            location of central bead around which we are computing these
-            things
+            BB beads that are included
+        bbAtom: Bead
+            central bead
             
         -------
         Returns
@@ -465,14 +491,21 @@ class Topology:
         newBonds: Blist
             list of  
         """
+        resID = bbAtom.resNo
         newBonds = Blist()
-        span = range(max(0,iD-shiftID),min(len(self.atomlist),iD+shiftID))
+        span = range(max(0,resID-shiftID),min(len(self.atomlist),
+                         resID+shiftID+1))
+        #pdb.set_trace()
         for j in range(0,len(span)-shiftID):
             lrinds = span[j:j+shiftID+1]
             ainds = []
             notes = ''
             for lri in lrinds:
-                currbead = self.atomlist[lri]
+                if lri == resID:
+                    currbead = bbAtom
+                else:
+                    currBeadID = self.findBBinRes(lri)
+                    currbead = self.atomlist[currBeadID]
                 ainds.append(currbead)
                 notes += currbead.resname + '-'
             if shiftID == 1:
@@ -537,26 +570,27 @@ class Topology:
         bbl = ff.bbldef[ssind]
         bbk = ff.bbkb[ssind]
         #add backbone bonds connecting left and right
+        #pdb.set_trace()
         if bbk is not None:
-            newBBBonds = self.createNewBonds([1,bbl,bbk],1,bbID)
+            newBBBonds = self.createNewBonds([1,bbl,bbk],1,bbAtom)
             resBonds = resBonds + newBBBonds
         else:
-            newBBBonds = self.createNewBonds([1,bbl],1,bbID)
+            newBBBonds = self.createNewBonds([1,bbl],1,bbAtom)
             resCons = resCons + newBBBonds
                 
         #add backbone angles connecting left and right
-        if ff.bbatyp.has_key[name]:
+        if ff.bbatyp.has_key(name):
             bba = ff.bbatyp[name][ssind]
         else:
             bba = ff.bbadef[ssind]
         bbka = ff.bbka[ssind]
-        newAngs = self.createNewBonds([2,bba,bbka],2,bbID)
+        newAngs = self.createNewBonds([2,bba,bbka],2,bbAtom)
         resAngs = resAngs + newAngs
         #if they exist, add backbone dihedrals connecting left and right
         if ssind < len(ff.bbddef):
             bbd = ff.bbbdef[ssind]
             bbkd = ff.bbkd[ssind]
-            newDihs = self.createNewBonds([1,bbd,bbkd],3,bbID)
+            newDihs = self.createNewBonds([1,bbd,bbkd],3,bbAtom)
             resDihs = resDihs + newDihs
            
         
@@ -565,6 +599,7 @@ class Topology:
             
             scpos = self.getSCPos(ff.sidechains[name][1],bbAtom.pos,
                                       len(ff.sidechains[name][0]))
+            #pdb.set_trace()
             for sci in range(len(ff.sidechains[name][0])):
                 scbead = Bead(0,name,'SC'+str(sci+1),sci+1,scpos[sci,:],
                               np.array([0.,0.,0.]),ff.sidechains[name][0][sci])
@@ -576,9 +611,10 @@ class Topology:
             for bsetind in range(len(bondConnect)):
                 for bind in range(len(bondConnect[bsetind])):
                     currBInds = bondConnect[bsetind][bind]
-                    currBParams = bondAttributes[bsetind][bind]
+                    currBParams = bondAttributes[bsetind+1][bind]
                     currBeads = []
                     currNotes = ''
+                    pdb.set_trace()
                     for cbind in range(len(currBInds)):
                         currBeads.append(self.atomlist[bbID+currBInds[cbind]])
                         currNotes += self.atomlist[bbID \
@@ -637,21 +673,23 @@ class Topology:
             for i in range(len(scs)):
                 pos = prevPos + scs[i][0]*np.array([0.,0.,1.])
                 scpos[i,:] = pos
+            #pdb.set_trace()
         elif nBeads == 3:
-            scpos[0,:] = scs[0][0]*np.array([0.,0.,1.])
+            scpos[0,:] = bbPos + scs[0][0]*np.array([0.,0.,1.])
             scpos[1,:] = scpos[0,:] + scs[1][0]*np.array([0.,np.cos(np.pi/3),
                                                           np.sin(np.pi/3)])
             scpos[2,:] = scpos[0,:] + scs[2][0]*np.array([0.,-np.cos(np.pi/3),
                                                           np.sin(np.pi/3)])
+            #pdb.set_trace()
         else:
-            scpos[0,:] = scs[0][0]*np.array([0.,0.,1.])
+            scpos[0,:] = bbPos + scs[0][0]*np.array([0.,0.,1.])
             scpos[1,:] = scpos[0,:] + scs[1][0]*np.array([0.,np.cos(np.pi/3),
                                                           np.sin(np.pi/3)])
             scpos[2,:] = scpos[0,:] + scs[2][0]*np.array([0.,-np.cos(np.pi/3),
                                                           np.sin(np.pi/3)])
             scpos[3,:] = scpos[2,:] + scs[1][0]*np.array([0.,np.cos(np.pi/3),
                                                           np.sin(np.pi/3)])
-            
+            #pdb.set_trace()
         return scpos
 
 class DXXXTopology(Topology):
@@ -805,11 +843,7 @@ class DXXXTopology(Topology):
                         (beads,params,notes) = self.__bangle__(spline,4)
                         D = Dihedral(beads,params,notes)
                         self.dihlist.append(D)
-        self.Itp = Itp(self.chemName,self.moltype,self.atomlist,self.bondlist,
-                       self.conlist,
-                       self.anglist,self.dihlist)
-        title = 'This file was created by createMartiniModel for the DXXX-OPV3-XXXD system with side residues PHE, ALA, and GLY'
-        self.Gro = Gro(title,len(self.atomlist),self.atomlist,self.box)
+        
     
     def write(self,fname):
         """
@@ -822,8 +856,13 @@ class DXXXTopology(Topology):
         fname: string
             the base name to use for both fname.itp and fname.gro
         """
-        self.Gro.write(fname+'.gro')
-        self.Itp.write(fname+'.itp') 
+        title = 'This file was created by createMartiniModel for the DXXX-OPV3-XXXD system with side residues PHE, ALA, and GLY'
+        gro = Gro(title,len(self.atomlist),self.atomlist,self.box)
+        gro.write(fname+'.gro')
+        itp = Itp(self.chemName,self.moltype,self.atomlist,self.bondlist,
+                       self.conlist,
+                       self.anglist,self.dihlist)
+        itp.write(fname+'.itp') 
         top = open(fname+'.top','w')
         top.write('#include "martini.itp"\n')
         top.write('#include "{}"\n'.format(fname+'.itp'))
@@ -867,11 +906,12 @@ class DXXXTopology(Topology):
         IDs = []
         for atom in self.atomlist:
             if atom.resNo == resID:
-                IDs.append(atom.number)
+                IDs.append(atom.number-1)
+        #pdb.set_trace()
         ind0 = min(IDs)
         newRes = self.createRes(name,structure,ind0)
         self.removeRes(resID)
-        
+        #pdb.set_trace()
         
         self.addRes(newRes,resID,ind0)
     
@@ -918,7 +958,7 @@ class DXXXTopology(Topology):
                 reind -= 1
         self.atomlist = natomlist
     
-    def addRes(self,newRes,resID,ind,startIDs):
+    def addRes(self,newRes,resID,ind):
         """
         Add a residue to the system at the given index
         
@@ -954,14 +994,15 @@ class DXXXTopology(Topology):
         for i in range(0,ind):
             newatoms.append(self.atomlist[i])
         for i in range(len(resAtoms)):
-            resAtoms[i].number = i+ind
+            resAtoms[i].number = i+ind+1
             resAtoms[i].resNo = resID
             newatoms.append(resAtoms[i])
         for i in range(ind,len(self.atomlist)):
             atom = self.atomlist[i]
-            atom.number = i+len(resAtoms)
+            atom.number = i+len(resAtoms)+1
             atom.resNo += 1
             newatoms.append(atom)
+        #pdb.set_trace()
         self.atomlist = newatoms
         self.bondlist.insertByResIndex(resBonds,resID)
         self.conlist.insertByResIndex(resCons,resID)
