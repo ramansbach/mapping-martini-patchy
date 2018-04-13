@@ -87,12 +87,13 @@ class Bond:
     not numbered consecutively.  Eventually, this should possibly be ported
     to an error.
     """    
-    def __init__(self,ainds,params,notes = ''):
+    def __init__(self,ainds,params,notes = '',fromCreateNewBonds=False):
         """
         Create a bond given two atoms and some parameters
         """
         if len(ainds) == 2:
-            if abs(ainds[0].resNo - ainds[1].resNo) != 1:
+            if abs(ainds[0].resNo - ainds[1].resNo) != 1 and (not fromCreateNewBonds):
+                #pdb.set_trace()
                 warn('Bond created between disjoint residues. Incorrectly ordered topology file?')
         self.ainds = ainds
         self.params = params
@@ -162,8 +163,8 @@ class Angle(Bond):
     Bond (same as bond except parameters and ainds are longer lists)
     
     """
-    def __init__(self,ainds,params,notes=''):
-        Bond.__init__(self,ainds,params,notes)
+    def __init__(self,ainds,params,notes='',fromCreateNewBonds=False):
+        Bond.__init__(self,ainds,params,notes,fromCreateNewBonds)
     
 
 class Dihedral(Angle):
@@ -175,8 +176,8 @@ class Dihedral(Angle):
     -------
     Angle -- identical except it has long ainds and params 
     """  
-    def __init__(self,ainds,params,notes=''):
-        Bond.__init__(self,ainds,params,notes)
+    def __init__(self,ainds,params,notes='',fromCreateNewBonds=False):
+        Bond.__init__(self,ainds,params,notes,fromCreateNewBonds)
         
 class Itp:
     """
@@ -459,16 +460,16 @@ class Topology:
         -------
         beadID: int
             the index of the bead in the atomlist that is the backbone bead
-            for the given residue, -1 if there is no backbone bead
+            for the given residue, None if there is no backbone bead
         """
         beadID = 0
         for atom in self.atomlist:
             if atom.resNo == resID and atom.name == 'BB':
                 return beadID
             beadID += 1
-        return -1
+        return None
     
-    def createNewBonds(self,params,shiftID,bbAtom):
+    def createNewBonds(self,params,shiftID,bbAtom,resID):
         """
         Helper function that creates bonds, constraints, angles or dihedrals
         
@@ -484,17 +485,18 @@ class Topology:
             BB beads that are included
         bbAtom: Bead
             central bead
-            
+        resID: eventual ID of residue containing central bead
         -------
         Returns
         -------
         newBonds: Blist
             list of  
         """
-        resID = bbAtom.resNo
+        
         newBonds = Blist()
-        span = range(max(0,resID-shiftID),min(len(self.atomlist),
-                         resID+shiftID+1))
+        finalResID = self.atomlist[len(self.atomlist)-1].resNo
+        span = range(max(1,resID-shiftID),min(finalResID,
+                         resID+shiftID)+1)
         #pdb.set_trace()
         for j in range(0,len(span)-shiftID):
             lrinds = span[j:j+shiftID+1]
@@ -506,14 +508,15 @@ class Topology:
                 else:
                     currBeadID = self.findBBinRes(lri)
                     currbead = self.atomlist[currBeadID]
-                ainds.append(currbead)
                 notes += currbead.resname + '-'
+                ainds.append(currbead)
+                
             if shiftID == 1:
-                newBonds.append(Bond(ainds,params,notes))
+                newBonds.append(Bond(ainds,params,notes,True))
             elif shiftID == 2:
-                newBonds.append(Angle(ainds,params,notes))
+                newBonds.append(Angle(ainds,params,notes,True))
             elif shiftID == 3:
-                newBonds.append(Dihedral(ainds,params,notes))
+                newBonds.append(Dihedral(ainds,params,notes,True))
             else:
                 warn('No such bonded interaction, returning empty Blist.')
         return newBonds
@@ -572,10 +575,10 @@ class Topology:
         #add backbone bonds connecting left and right
         #pdb.set_trace()
         if bbk is not None:
-            newBBBonds = self.createNewBonds([1,bbl,bbk],1,bbAtom)
+            newBBBonds = self.createNewBonds([1,bbl,bbk],1,bbbead,bbAtom.resNo)
             resBonds = resBonds + newBBBonds
         else:
-            newBBBonds = self.createNewBonds([1,bbl],1,bbAtom)
+            newBBBonds = self.createNewBonds([1,bbl],1,bbbead,bbAtom.resNo)
             resCons = resCons + newBBBonds
                 
         #add backbone angles connecting left and right
@@ -584,13 +587,13 @@ class Topology:
         else:
             bba = ff.bbadef[ssind]
         bbka = ff.bbka[ssind]
-        newAngs = self.createNewBonds([2,bba,bbka],2,bbAtom)
+        newAngs = self.createNewBonds([2,bba,bbka],2,bbbead,bbAtom.resNo)
         resAngs = resAngs + newAngs
         #if they exist, add backbone dihedrals connecting left and right
         if ssind < len(ff.bbddef):
             bbd = ff.bbbdef[ssind]
             bbkd = ff.bbkd[ssind]
-            newDihs = self.createNewBonds([1,bbd,bbkd],3,bbAtom)
+            newDihs = self.createNewBonds([1,bbd,bbkd],3,bbbead,bbAtom.resNo)
             resDihs = resDihs + newDihs
            
         
@@ -614,11 +617,10 @@ class Topology:
                     currBParams = bondAttributes[bsetind+1][bind]
                     currBeads = []
                     currNotes = ''
-                    pdb.set_trace()
+                    #pdb.set_trace()
                     for cbind in range(len(currBInds)):
-                        currBeads.append(self.atomlist[bbID+currBInds[cbind]])
-                        currNotes += self.atomlist[bbID \
-                                                +currBInds[cbind]].resname +'-'
+                        currBeads.append(resAtoms[currBInds[cbind]])
+                        currNotes += resAtoms[currBInds[cbind]].resname +'-'
                     if len(currBInds) == 2:
                         
                         if currBParams[1] is not None: #bond
@@ -691,6 +693,7 @@ class Topology:
                                                           np.sin(np.pi/3)])
             #pdb.set_trace()
         return scpos
+
 
 class DXXXTopology(Topology):
     """
@@ -806,7 +809,7 @@ class DXXXTopology(Topology):
             if flag == 'notes':
                 self.title += line
             else:
-                if line[0] == ';' or line == '\n':
+                if line[0] == ';' or line == '\n' or line[0] == '#':
                     continue
                 else:
                     spline = line.split()
@@ -828,7 +831,10 @@ class DXXXTopology(Topology):
                                  beadtype)
                         self.atomlist.append(A)
                     elif flag == 'bonds':
-                        (beads,params,notes) = self.__bangle__(spline,2)
+                        try:
+                            (beads,params,notes) = self.__bangle__(spline,2)
+                        except:
+                            pdb.set_trace()
                         B = Bond(beads,params,notes)
                         self.bondlist.append(B)
                     elif flag == 'cons':
@@ -910,6 +916,7 @@ class DXXXTopology(Topology):
         #pdb.set_trace()
         ind0 = min(IDs)
         newRes = self.createRes(name,structure,ind0)
+        #pdb.set_trace()
         self.removeRes(resID)
         #pdb.set_trace()
         

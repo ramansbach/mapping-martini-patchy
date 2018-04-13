@@ -14,6 +14,8 @@ DFAG parameters -- this may be worth testing against one another] with
 [I need to check secondary structure considerations to see if it matters
 much.]
 
+BE CAREFUL: this may FAIL if the residues are out of order in the original topology file
+
 There are also a series of bash scripts. First, getSASA.sh, which
 runs a 30 ns simulation of a single monomer in Gromacs [4.6/5] with the given 
 parameters, and then performs a gmx SASA calculation to extract

@@ -362,7 +362,18 @@ def test_getSCPosTRP():
                                                      [0.,0.135,0.27*np.sqrt(3)/2+0.3],
                                                      [0.,-0.135,0.27*np.sqrt(3)/2+0.3],
                                                      [0.,0.,0.27*np.sqrt(3)+0.3]]))       
-                                                     
+
+def check_file_equivalency(fname1,fname2):
+    """helper function for making sure files are the same"""
+    f1 = open(fname1)
+    ft1 = open(fname2)
+    f1r = f1.readlines()
+    f1.close()
+    ft1r = ft1.readlines()
+    ft1.close()
+    for lind in range(len(f1r)):
+        assert(f1r[lind]==ft1r[lind])
+                                                         
 def test_change_PHE_to_ALA():
     """
     Test swapping residues
@@ -370,14 +381,65 @@ def test_change_PHE_to_ALA():
     Top1 = DXXXTopology('DFAG.itp','DFAG.gro')
     Top1.resSwap('ALA','C',2)
     Top1.write('DAAG_half_test')
+    #check that this is the same as one that we have visually confirmed looks ok
+    for suffix in ['.gro','.itp','.top']:
+        check_file_equivalency('DAAG_half_test'+suffix,
+                               'DAAG_half_test_checked'+suffix)
     
 def test_change_DFAG_to_DAAG():
     Top1 = DXXXTopology('DFAG.itp','DFAG.gro')
     Top1.resSwap('ALA','C',2)
     Top1.resSwap('ALA','C',14)
     Top1.write('DAAG_test')
+    for suffix in ['.gro','.itp','.top']:
+        check_file_equivalency('DAAG_test'+suffix,
+                               'DAAG_test_checked'+suffix)
     
 def test_change_ALA_to_PHE():
     Top1 = DXXXTopology('DFAG.itp','DFAG.gro')
     Top1.resSwap('PHE','C',3)
     Top1.write('DFFG_half_test')
+    for suffix in ['.gro','.itp','.top']:
+        check_file_equivalency('DFFG_half_test'+suffix,
+                               'DFFG_half_test_checked'+suffix)
+
+def test_change_DFAG_to_DFFG():
+    Top1 = DXXXTopology('DFAG.itp','DFAG.gro')
+    Top1.resSwap('PHE','C',3)
+    Top1.resSwap('PHE','C',13)
+    Top1.write('DFFG_test')
+    for suffix in ['.gro','.itp','.top']:
+        check_file_equivalency('DFFG_test'+suffix,
+                               'DFFG_test_checked'+suffix)
+                               
+def test_change_PHE_to_TRP():
+    Top1 = DXXXTopology('DFAG.itp','DFAG.gro')
+    Top1.resSwap('TRP','C',2)
+    Top1.write('DTAG_half_test')
+    
+def test_change_DFAG_to_DTAG():
+    Top1 = DXXXTopology('DFAG.itp','DFAG.gro')
+    Top1.resSwap('TRP','C',2)
+    Top1.resSwap('TRP','C',14)
+    Top1.write('DTAG_test')
+    
+def test_change_ALA_to_VAL():
+    Top1 = DXXXTopology('DFAG.itp','DFAG.gro')
+    Top1.resSwap('VAL','C',3)
+    Top1.write('DFVG_half_test')    
+    
+def test_change_DFAG_to_DFVG():
+    Top1 = DXXXTopology('DFAG.itp','DFAG.gro')
+    Top1.resSwap('VAL','C',3)
+    Top1.resSwap('VAL','C',13)
+    Top1.write('DFVG_test')
+    
+def test_change_DFAG_to_DTVG():
+    Top1 = DXXXTopology('DFAG.itp','DFAG.gro')
+    Top1.resSwap('TRP','C',2)
+    Top1.resSwap('TRP','C',14)
+    Top1.write('DTVG_midway_test')
+    Top1.resSwap('VAL','C',3)
+    Top1.write('DTVG_2midway_test')
+    Top1.resSwap('VAL','C',13)
+    Top1.write('DTVG_test')
