@@ -635,7 +635,7 @@ class Topology:
                         currParams = [2,currBParams[0],currBParams[1]]
                         resAngs.append(Angle(currBeads,currParams,currNotes))
                     elif len(currBInds) == 4:#dihedral
-                        currParams = [1,currBParams[0],currBParams[1]]
+                        currParams = [2,currBParams[0],currBParams[1]]
                         resDihs.append(Dihedral(currBeads,currParams,
                                                 currNotes))
                     else:#???
@@ -694,6 +694,96 @@ class Topology:
             #pdb.set_trace()
         return scpos
 
+class ResidueTopology(Topology):
+    """
+    Topology for a single amino acid residue, rather than an OPV3 core.
+    Initialized as a single alanine for compatibility
+    ----------
+    Attributes
+    ----------
+    title: string
+            Information about the file
+    atomno: int
+            number of atoms in the system
+    box: list of floats, length 3
+            the box vectors of the system (assume cubic box)
+    moltype:  [string,int]
+        name, exclusions
+    chemName: string
+        short version of chemistry name (ie DFAG)
+    atomlist: list of beads containing structural information about each atom
+    bondlist: list of bonds containing structural information about each bond
+    conlist: list of constraints containing structural information about each 
+        one
+    anglist: list of angles containing structural information about each one
+    dihlist: list of dihedrals containing structural information about each one
+    """
+    
+    def __init__(self):
+        Topology.__init__(self)
+        self.chemName = 'X'
+        resNo = 1
+        resname = 'ALA'
+        name = 'BB'
+        number = 1
+        pos = np.array([0.,0.,0.])
+        vel = np.array([0.,0.,0.])
+        btype = 'P4'
+        Ala = Bead(resNo,resname,name,number,pos,vel,btype)
+        self.atomlist.append(Ala)
+        self.atomno = 1
+        self.title = 'Single amino acid residue created from Martini 2.2 FF'
+    
+    def changeAA(self,resname):
+        """
+        Changes the alanine into whatever other amino acid is given.
+        
+        ----------
+        Parameters
+        ----------
+        resname: string
+            name of the residue to swap in
+        """
+        (resAtoms,resBonds,resCons,resAngs,resDihs) = \
+                                                 self.createRes(resname,'C',0)
+        self.atomlist = resAtoms
+        self.bondlist = resBonds
+        self.conlist = resCons
+        self.anglist = resAngs
+        self.dihlist = resDihs
+        for i in range(len(self.atomlist)):
+            self.atomlist[i].number += 1
+            self.atomlist[i].resNo = 1
+        
+            
+        
+    def write(self,fname):
+        """
+        Write out an itp file, a top file and a gro file corresponding to 
+        the system
+        
+        ----------
+        Parameters
+        ----------
+        fname: string
+            the base name to use for both fname.itp and fname.gro
+        """
+        title = 'This file was created by createMartiniModel for a single res'
+        gro = Gro(title,len(self.atomlist),self.atomlist,self.box)
+        gro.write(fname+'.gro')
+        itp = Itp(self.chemName,self.moltype,self.atomlist,self.bondlist,
+                       self.conlist,
+                       self.anglist,self.dihlist)
+        itp.write(fname+'.itp') 
+        top = open(fname+'.top','w')
+        top.write('#include "martini.itp"\n')
+        top.write('#include "{}"\n'.format(fname+'.itp'))
+        top.write('[ system ]\n\n')
+        top.write('; name\n')
+        top.write('{} system\n\n'.format(self.chemName))
+        top.write('[ molecules ]\n\n')
+        top.write('; name \t number\n\n')
+        top.write('{} \t {}\n'.format(self.moltype[0],self.moltype[1]))
 
 class DXXXTopology(Topology):
     """
