@@ -568,6 +568,9 @@ class Topology:
             bbbeadtype = ff.bbdef[ssind]
         bbAtom = self.atomlist[bbID]
         bbbead = Bead(0,name,'BB',0,bbAtom.pos,bbAtom.vel,bbbeadtype)
+        
+        if ff.charges.has_key(bbbeadtype):
+            bbbead.charge = ff.charges[bbbeadtype]
         resAtoms.append(bbbead)
         
         bbl = ff.bbldef[ssind]
@@ -606,6 +609,10 @@ class Topology:
             for sci in range(len(ff.sidechains[name][0])):
                 scbead = Bead(0,name,'SC'+str(sci+1),sci+1,scpos[sci,:],
                               np.array([0.,0.,0.]),ff.sidechains[name][0][sci])
+                #pdb.set_trace()
+                if ff.charges.has_key(ff.sidechains[name][0][sci]):
+                    scbead.charge = \
+                    float(ff.charges[ff.sidechains[name][0][sci]])
                 resAtoms.append(scbead)
         
             #add bonded interactions containing SC beads

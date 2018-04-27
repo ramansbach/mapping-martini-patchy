@@ -1,0 +1,12 @@
+#include "martini.itp"
+#include "DFAG.itp"
+[ system ]
+
+; name
+DXXX system
+
+[ molecules ]
+
+; name 	 number
+
+Protein 	 1
