@@ -621,20 +621,21 @@ class Topology:
             currres = self.atomlist[bbID].resNo
             maxres = self.atomlist[len(self.atomlist)-1].resNo
             #pdb.set_trace()
-            if currres > 0.5 * maxres:
-                currNeighBead = self.atomlist[self.findBBinRes(currres-1)]  
-                params = [2,ff.bbsangle[0],ff.bbsangle[1]]
-                ainds = [currNeighBead,resAtoms[0],resAtoms[1]]
-                notes = currNeighBead.resname + '-' + resAtoms[0].resname + \
-                        '-' + resAtoms[1].resname
-                resAngs.append(Angle(ainds,params,notes))
-            else:
-                currNeighBead = self.atomlist[self.findBBinRes(currres+1)]
-                params = [2,ff.bbsangle[0],ff.bbsangle[1]]
-                ainds = [resAtoms[1],resAtoms[0],currNeighBead]
-                notes = resAtoms[1].resname + '-' + resAtoms[0].resname + \
-                        '-' + currNeighBead.resname
-                resAngs.append(Angle(ainds,params,notes))
+            if maxres > 1:
+                if currres > 0.5 * maxres:
+                    currNeighBead = self.atomlist[self.findBBinRes(currres-1)]  
+                    params = [2,ff.bbsangle[0],ff.bbsangle[1]]
+                    ainds = [currNeighBead,resAtoms[0],resAtoms[1]]
+                    notes = currNeighBead.resname + '-' + resAtoms[0].resname + \
+                            '-' + resAtoms[1].resname
+                    resAngs.append(Angle(ainds,params,notes))
+                else:
+                    currNeighBead = self.atomlist[self.findBBinRes(currres+1)]
+                    params = [2,ff.bbsangle[0],ff.bbsangle[1]]
+                    ainds = [resAtoms[1],resAtoms[0],currNeighBead]
+                    notes = resAtoms[1].resname + '-' + resAtoms[0].resname + \
+                            '-' + currNeighBead.resname
+                    resAngs.append(Angle(ainds,params,notes))
             #add bonded interactions containing SC beads
             bondConnect = ff.connectivity[name]
             bondAttributes = ff.sidechains[name]

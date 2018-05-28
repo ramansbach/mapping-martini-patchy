@@ -249,7 +249,7 @@ def test_removeRes_midsingle2():
     assert Top1.bondlist[5].ainds[0].resname == 'COP'
     assert Top1.bondlist[5].ainds[1].resname == 'VIN'
     assert Top1.bondlist[6].ainds[0].number == 14
-    assert Top1.bondlist[6].ainds[1].number == 18
+    assert Top1.bondlist[6].ainds[1].number == 17
     assert Top1.bondlist[6].ainds[0].resname == 'VIN'
     assert Top1.bondlist[6].ainds[1].resname == 'COP'
     
